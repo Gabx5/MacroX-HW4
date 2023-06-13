@@ -6,13 +6,8 @@ output: pdf_document
 ---
 
 
-```{r part load, echo=FALSE, include=FALSE}
+```{r load packages, echo=FALSE, include=FALSE}
 rm(list=ls())
-############# NEW DATA  #############
-data.kilian.raw <- read.table("data_kilian_park_2009.txt", header = FALSE, sep = "", col.names = c("prod","REA","RP","RDG"))
-data.kilian <- ts(data.kilian.raw, start = c(1973,1), frequency = 12)
-############ NEW DATA #############
-
 # -------------------------------------------------- #
 #                                                    #
 # Macroeconometrics Science Track Summer Term 2023   #
@@ -39,52 +34,18 @@ if(suppressWarnings(!require(magic))){
 require(bvarsv)
 ```
 
+```{r data, echo=FALSE, include=FALSE}
+############# NEW DATA  #############
+data.kilian.raw <- read.table("data_kilian_park_2009.txt", header = FALSE, sep = "", col.names = c("prod","REA","RP","RDG"))
+data.kilian <- ts(data.kilian.raw, start = c(1973,1), frequency = 12)
+############ NEW DATA #############
 
-```{r part data, echo=FALSE, include=FALSE}
-type <- "real" # either "sim" or "real"
-###----------------------------------- Load/Simulate data ----------------------------------------------------
-if(type == "sim"){
-  set.seed(571) #set seed to obtain the same results
-  # DGP of VAR(1) process
-  N <- 3 # number of endogenous variables
-  persist <- 0.9 # define true coefficient of first own lag
-  TT <- 100 # define total number of observations
-  p <- 1 # true number of lags
+Traw <- nrow(data.kilian)
+Yraw <- data.kilian
 
-  #store object
-  Yraw <- matrix(0, TT, N)
-  colnames(Yraw) <- paste0("Var", 1:N)
-  Yraw[1,] <- rnorm(N) #define initial observation
-
-  A.mat <- matrix(0,N,N) # coefficient matrix
-  A.mat <- matrix(rnorm(N^2, 0, 0.1), N, N)
-  diag(A.mat) <- persist #first own lag
-
-  eig.re <- max(Re(eigen(A.mat)$values))
-  eig.im <- max(Im(eigen(A.mat)$values))
-
-  Sig.low <- matrix(0,N,N) #variance-covariance matrix
-  diag(Sig.low) <- 1 # true variance
-  Sig.low[lower.tri(Sig.low, diag = FALSE)] <- rnorm((N*(N-1)/2), 0, 0.1) #true lower Cholesky factor
-  Sig <- Sig.low %*% t(Sig.low) # full vcov-matrix
-
-  constant <- rnorm(N,0,1)
-
-  for (tt in 2:TT){
-    Yraw[tt,] <- constant + A.mat%*%Yraw[tt-1,]+Sig.low%*%rnorm(N,0,1)
-  }
-}else{
-  if(type == "real"){
-    #Real macro data of US, using the bvarsv package
-    #data("usmacro")
-    Traw <- nrow(data.kilian)
-    Yraw <- data.kilian
-  }
-}
 ```
 
-
-```{r part transform data, echo=FALSE, include=FALSE}
+```{r transform and OLS, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
 # useful function for lagging data matrices
 mlag <- function(X,lag){
@@ -155,10 +116,7 @@ time <- as.yearqtr(time(data.kilian))
 diag(crossprod(yfit)) / diag(crossprod(Y))
 ```
 
-
-
-
-```{r part priors, echo=FALSE, include=FALSE}
+```{r main, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
 # PRIORS
 #------------------------------------------------------------------------------------
@@ -219,7 +177,7 @@ XX <- crossprod(X)
 nsave <- 1000               # number of saved draws
 nburn <- 1000               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
-nhor  <- 13                 # horizon for IRFs
+nhor  <- 16                # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
 
 # Container for MCMC draws, stored after burn-in
@@ -439,10 +397,8 @@ xax <- c(as.character(time[(bigT-20):bigT]),paste0("t+",seq(1,fhorz)))
 
 ```
 
-
-
-```{r plot 6 IRF chol, echo=FALSE, eval=FALSE}
-#Start plotting the IRFs w.r.t. different shocks
+```{r inactive IRF chol, echo=FALSE, eval=FALSE}
+#not used at moment
 par(mfrow=c(1,4))
 for(ii in 1:M){
   for(jj in 4:4){
@@ -456,11 +412,10 @@ for(ii in 1:M){
     axis(1, at=seq(1,nhor,by=2), labels=seq(0,nhor-1,by=2))
   }
 }
-```
+``` 
 
-
-
-```{r plot 7 IRF SR, echo=FALSE, eval=FALSE}
+```{r inactive IRF SR, echo=FALSE, eval=FALSE}
+#not used at moment
 par(mfrow=c(3,3),mar=c(4,4,2,2))
 for(ii in 1:M){
   for(jj in 1:M){
@@ -476,23 +431,20 @@ for(ii in 1:M){
 }
 ```
 
-
-1) 
-
-
-
+*Exercise 2:* 
 
 Below we replicate figure 2.
 
-```{r}
+```{r figure 2}
 
 #1. Compute reduced form error terms using data and posterior distributions of parameters
 # = (Data - model) where for model use posterior version of Kilian model (1) in reduced form
 # You should get as many as we have samples from posterior. Take median of them.
 #2. Compute structural error terms using by premultiplying with B_inv which is shock.col
 #Once you have structural errors look on slide 61 on slide set 16_ts-multi
-#Theta_j should be #IRFchol_median[4,,j] for bigger j it might be needed to recompute it (e.g. change forecast period)
-#Follow the steps of the picture sent in group
+#Theta_j should be #IRFchol_median[4,,j] 
+#for bigger j it might be needed to recompute it (e.g. change forecast period)
+#Have a look on pictures which are in same folder with this code
 ```
 ............... 
 
@@ -506,7 +458,7 @@ Below we replicate the lower panel of figure 3. The IRFs remind of those in the 
 
 
 
-```{r}
+```{r figure 3}
 # Code for replication of figure 3:
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
@@ -517,8 +469,8 @@ IRFchol_store2[, 4, i, ] <- t(apply(IRFchol_store[, 4, i, ], 1, cumsum))
 #Quantiles over the first dimension (number of saved draws)
 IRFchol_low.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
 IRFchol_high.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFchol_low.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.02,na.rm=TRUE)
-IRFchol_high.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.98,na.rm=TRUE)
+IRFchol_low.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.025,na.rm=TRUE)
+IRFchol_high.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFchol_median2 <- apply(IRFchol_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
@@ -532,6 +484,7 @@ lines(sign.list[jj]*IRFchol_high.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFchol_low.95[ii,jj,], lty = 3, lwd=2)
 lines(sign.list[jj]*IRFchol_high.95[ii,jj,], lty = 3, lwd=2)
 abline(h=0,col="red",lwd=2)
+axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 }}
 ```
 
@@ -540,7 +493,7 @@ abline(h=0,col="red",lwd=2)
 Sign restrictions:
 
 
-```{r}
+```{r SR}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store2 <- IRFsign_store
@@ -551,8 +504,8 @@ IRFsign_store2[, 4, i, ] <- t(apply(IRFsign_store[, 4, i, ], 1, cumsum))
 #Quantiles over the first dimension (number of saved draws)
 IRFsign_low.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
 IRFsign_high.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFsign_low.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.02,na.rm=TRUE)
-IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.98,na.rm=TRUE)
+IRFsign_low.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.025,na.rm=TRUE)
+IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFsign_median2 <- apply(IRFsign_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
@@ -567,6 +520,7 @@ lines(sign.list[jj]*IRFsign_high.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFsign_low.95[ii,jj,], lty = 3, lwd=2)
 lines(sign.list[jj]*IRFsign_high.95[ii,jj,], lty = 3, lwd=2)
 abline(h=0,col="red",lwd=2)
+axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 }}
 ```
 
@@ -577,7 +531,7 @@ Think of other variables:
 
 We decided to use the Variable "S.P.500" from the dataset "current.csv" and as a measure for the CPI the Variable "CPIAUCSL". 
 
-```{r}
+```{r Data SP500}
 
 FRED <- read.csv("current.csv",sep = ",", dec = ".")[-1,]
 data.SP.CPI.raw <- ts(FRED[c("S.P.500","CPIAUCSL")], start=c(1959,1),frequency=12)
@@ -587,56 +541,11 @@ SP.RR <- (1 + data.returns.inf[,1]) / (1 + data.returns.inf[,2]) - 1
 
 data.returns <- ts(data.frame(data.kilian[,1:3], SP.RR), start = c(1972, 12), frequency=12)
 
+Traw <- nrow(data.returns)
+Yraw <- data.returns
 ```
 
-We again estimate the VAR and the impulse response functions:
-
-
-```{r part data 2, echo=FALSE, include=FALSE}
-
-
-type <- "real" # either "sim" or "real"
-###----------------------------------- Load/Simulate data ----------------------------------------------------
-if(type == "sim"){
-  set.seed(571) #set seed to obtain the same results
-  # DGP of VAR(1) process
-  N <- 3 # number of endogenous variables
-  persist <- 0.9 # define true coefficient of first own lag
-  TT <- 100 # define total number of observations
-  p <- 1 # true number of lags
-
-  #store object
-  Yraw <- matrix(0, TT, N)
-  colnames(Yraw) <- paste0("Var", 1:N)
-  Yraw[1,] <- rnorm(N) #define initial observation
-
-  A.mat <- matrix(0,N,N) # coefficient matrix
-  A.mat <- matrix(rnorm(N^2, 0, 0.1), N, N)
-  diag(A.mat) <- persist #first own lag
-
-  eig.re <- max(Re(eigen(A.mat)$values))
-  eig.im <- max(Im(eigen(A.mat)$values))
-
-  Sig.low <- matrix(0,N,N) #variance-covariance matrix
-  diag(Sig.low) <- 1 # true variance
-  Sig.low[lower.tri(Sig.low, diag = FALSE)] <- rnorm((N*(N-1)/2), 0, 0.1) #true lower Cholesky factor
-  Sig <- Sig.low %*% t(Sig.low) # full vcov-matrix
-
-  constant <- rnorm(N,0,1)
-
-  for (tt in 2:TT){
-    Yraw[tt,] <- constant + A.mat%*%Yraw[tt-1,]+Sig.low%*%rnorm(N,0,1)
-  }
-}else{
-  if(type == "real"){
-    Traw <- nrow(data.returns)
-    Yraw <- data.returns
-  }
-}
-```
-
-
-```{r part transform data 2, echo=FALSE, include=FALSE}
+```{r transform SP500, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
 # useful function for lagging data matrices
 mlag <- function(X,lag){
@@ -707,10 +616,7 @@ time <- as.yearqtr(time(data.returns))
 diag(crossprod(yfit)) / diag(crossprod(Y))
 ```
 
-
-
-
-```{r part priors 2, echo=FALSE, include=FALSE}
+```{r main SP500, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
 # PRIORS
 #------------------------------------------------------------------------------------
@@ -771,7 +677,7 @@ XX <- crossprod(X)
 nsave <- 1000               # number of saved draws
 nburn <- 1000               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
-nhor  <- 13                 # horizon for IRFs
+nhor  <- 16                 # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
 
 # Container for MCMC draws, stored after burn-in
@@ -991,8 +897,11 @@ xax <- c(as.character(time[(bigT-20):bigT]),paste0("t+",seq(1,fhorz)))
 
 ```
 
-```{r figure 3 - 2}
+We again estimate the VAR and the impulse response functions:
+
+```{r figure 3 SP500}
 # Code for replication of figure 3:
+
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
 
@@ -1002,8 +911,8 @@ IRFchol_store2[, 4, i, ] <- t(apply(IRFchol_store[, 4, i, ], 1, cumsum))
 #Quantiles over the first dimension (number of saved draws)
 IRFchol_low.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
 IRFchol_high.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFchol_low.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.02,na.rm=TRUE)
-IRFchol_high.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.98,na.rm=TRUE)
+IRFchol_low.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.025,na.rm=TRUE)
+IRFchol_high.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFchol_median2 <- apply(IRFchol_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
@@ -1017,15 +926,14 @@ lines(sign.list[jj]*IRFchol_high.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFchol_low.95[ii,jj,], lty = 3, lwd=2)
 lines(sign.list[jj]*IRFchol_high.95[ii,jj,], lty = 3, lwd=2)
 abline(h=0,col="red",lwd=2)
+axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
+
 }}
 ```
 
-
-
 Sign restrictions:
 
-
-```{r SR 2}
+```{r SR SP500}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store2 <- IRFsign_store
@@ -1036,8 +944,8 @@ IRFsign_store2[, 4, i, ] <- t(apply(IRFsign_store[, 4, i, ], 1, cumsum))
 #Quantiles over the first dimension (number of saved draws)
 IRFsign_low.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
 IRFsign_high.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFsign_low.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.02,na.rm=TRUE)
-IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.98,na.rm=TRUE)
+IRFsign_low.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.025,na.rm=TRUE)
+IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFsign_median2 <- apply(IRFsign_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
@@ -1052,6 +960,8 @@ lines(sign.list[jj]*IRFsign_high.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFsign_low.95[ii,jj,], lty = 3, lwd=2)
 lines(sign.list[jj]*IRFsign_high.95[ii,jj,], lty = 3, lwd=2)
 abline(h=0,col="red",lwd=2)
+axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
+
 }}
 ```
 
