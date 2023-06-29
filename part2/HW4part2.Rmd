@@ -31,6 +31,10 @@ if(suppressWarnings(!require(magic))){
   install.packages("magic")
 }
 
+if(suppressWarnings(!require(tidyverse))){
+  install.packages("tidyvers")
+}
+
 require(bvarsv)
 ```
 
@@ -435,22 +439,312 @@ for(ii in 1:M){
 
 Below we replicate figure 2.
 
-```{r figure 2}
+```{r Reestimation of Model, include= FALSE}
+load("data_kilian_2009.Rda")
 
-#1. Compute reduced form error terms using data and posterior distributions of parameters
-# = (Data - model) where for model use posterior version of Kilian model (1) in reduced form
-# You should get as many as we have samples from posterior. Take median of them.
-#2. Compute structural error terms using by premultiplying with B_inv which is shock.col
-#Once you have structural errors look on slide 61 on slide set 16_ts-multi
-#Theta_j should be #IRFchol_median[4,,j] 
-#for bigger j it might be needed to recompute it (e.g. change forecast period)
-#Have a look on pictures which are in same folder with this code
+library(MCMCpack) # has the inverse wishart riwish()
+library(magic)
+
+#specifications
+plag <- 24     # number of lags
+cons <- TRUE  # include constant?
+
+# Create data matrices
+Yraw <- as.matrix(data)
+Xraw <- mlag(Yraw, plag) # X's are the lagged values of Y
+
+if(cons) Xraw <- cbind(Xraw, 1) # Note that constant is located after lags of variables
+
+# look at size of data
+dim(Yraw)
+dim(Xraw)
+
+# first plag rows are zero | conditioning on the first p observations
+Y <- Yraw[(plag + 1):nrow(Yraw), ]
+X <- Xraw[(plag + 1):nrow(Xraw), ]
+y <- as.vector(Y)
+
+dim(Y)
+dim(X)
+# View(X)
+
+# get useful dimensions
+M    <- ncol(Y)           # number of endogenous variables in the VAR
+bigT <- nrow(Y)           # sample size, do not use T only as name!
+K    <- M * plag          # number of autoregressive coefficients
+k    <- ncol(X)           # number of parameters per equation
+v    <- M * (M - 1) / 2
+#------------------------------------------------------------------------------------
+# Initial Values, OLS preliminaries, can also just take a draw from the prior distribution
+#------------------------------------------------------------------------------------
+A_OLS <- solve(crossprod(X)) %*% crossprod(X, Y)
+# A_OLS <- chol2inv(chol(crossprod(X)))%*%crossprod(X,Y) 
+# Cholesky to inverse saves computation time
+E_OLS <- Y - X %*% A_OLS
+S_OLS <- crossprod(E_OLS) / (bigT - K)
+
+{# let's have a look at OLS estimates
+  yfit <- X %*% A_OLS
+  # amazing in-sample fit, but bad out-of-sample fit
+  library(zoo)
+  time <- (row.names(data))
+  par(mfrow=c(3,1), mar=c(4,2,2,1))
+  plot.ts(Y[,1], xlab="", ylab="", main="delta_oil_production", xaxt="n", lwd=2, cex.main=1.5, cex.lab=2)
+  lines(yfit[,1],col="red", lwd=2)
+  axis(1, at=seq(1,395,by=20), labels=time[seq(1,395,by=20)], las=2)
+  abline(v=seq(1,395,by=20), col="lightgrey", lty=3)
+  plot.ts(Y[,2], xlab="", ylab="", main="real_activity", xaxt="n", lwd=2, cex.main=1.5, cex.lab=2)
+  lines(yfit[,2],col="red", lwd=2)
+  axis(1, at=seq(1,395,by=20), labels=time[seq(1,395,by=20)], las=2)
+  abline(v=seq(1,395,by=20), col="lightgrey", lty=3)
+  plot.ts(Y[,3], xlab="", ylab="", main="real_price_of_oil", xaxt="n", lwd=2, cex.main=1.5, cex.lab=2)
+  lines(yfit[,3],col="red", lwd=2)
+  axis(1, at=seq(1,395,by=20), labels=time[seq(1,395,by=20)], las=2)
+  abline(v=seq(1,395,by=20), col="lightgrey", lty=3)}
+
+# explained variation
+diag(crossprod(yfit)) / diag(crossprod(Y))
+
+
+#------------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------------
+# PRIORS
+#------------------------------------------------------------------------------------
+A_prior <- matrix(0, k, M) 
+diag(A_prior) <- 1 # prior mean: 1 for first own lags, 0 otherwise. Note that prior mean for
+# deterministics is in last row due to ordering of constant in Xraw
+A_prior
+a_prior <- as.vector(A_prior) # vectorize prior mean matrix
+
+# get AR variances to scale cross-variable lags of Minnesota prior
+sigs <- numeric(length = M)
+for(mm in 1:M){
+  yuse <- Y[, mm, drop=FALSE]
+  xuse <- cbind(X[,seq(mm, M * plag, by=M), drop=FALSE], 1)
+  b    <- solve(crossprod(xuse)) %*% crossprod(xuse,yuse)
+  sigs[mm] <- crossprod(yuse-xuse %*% b) / (bigT - plag - 1)
+}
+
+# Minnesota prior
+# own lags:       (lambda1/k)^2   # k == lag
+# cross lags:     (sig_i^2/sig_j^2)(lambda1 * lambda2/k)^2
+# deterministics: lambda3*sig_i^2
+lambda1 <- 0.5*3; lambda2 <- 1.5*3; lambda3 <- 100
+V_prior <- array(0, c(k, k, M))
+for(mm in 1:M){ # over all equations
+  for(pp in 1:plag){ # over all lags
+    for(kk in 1:M){ # over all coefficients
+      if(mm == kk){ # own lag
+        V_prior[(pp - 1) * M + kk, (pp - 1) * M + kk, mm] <- (lambda1 / pp)^2
+      }else{ # cross-lags
+        V_prior[(pp - 1) * M + kk, (pp - 1) * M + kk, mm] <- (sigs[mm] / sigs[kk]) * (lambda1 * lambda2 / pp)^2
+      }
+    }
+  }
+  V_prior[k, k, mm] <- lambda3 * sigs[mm] # for deterministics (i.e. constant)
+}
+V_prior    <- lapply(seq(dim(V_prior)[3]), function(x) V_prior[ , , x]) # array to list
+V_prior    <- Reduce(magic::adiag, V_prior) # bring in form
+V_prior[1:(M*plag+1), 1:(M*plag+1)]
+V_priorinv <- diag(1 / diag(V_prior))
+
+# hyperparameters for inverse Wishart
+s0 <- M + 2
+S0 <- (s0 - M - 1) * diag(sigs)
+
+# initialize draws with OLS estimators
+A_draw <- A_OLS
+S_draw <- S_OLS
+
+# outside loop calculations
+s_post    <- bigT + s0
+XX <- crossprod(X)
+
+
+#------------------------------------------------------------------------------------
+# MCMC setup
+#------------------------------------------------------------------------------------
+nsave <- 1000               # number of saved draws
+nburn <- 1000               # number of burned draws
+ntot  <- nsave + nburn      # number of total draws
+nhor  <- 20                 # horizon for IRFs
+fhorz <- 8                  # forecasting horizon
+
+# Container for MCMC draws, stored after burn-in
+A_store <- array(NA, c(nsave, k, M))
+S_store <- array(NA, c(nsave, M, M))
+
+# container for sign restriction attempts
+cou_store <- numeric(length = nsave)
+
+# Predictions -- dimensions: number of draws x number of variables x forecasting horizon
+yf_store <- array(NA, c(nsave, M, fhorz))
+
+# IRFs -- dimensions: Number of draws x Number of responses x Number of structural shocks x horizon
+IRFchol_store <- array(NA,c(nsave, M, M, nhor))
+IRFsign_store <- array(NA,c(nsave, M, M, nhor))
+
+set.seed(1)
+for(irep in 1:ntot){
+  #-----------------------------------------------------------------------------
+  # Step 1: Draw S_draw | Y, A_draw from IW
+  # s_overbar = T + s_underbar (s0)
+  # S_overbar = (Y-XA)'(Y-XA) + S_underbar (S0)
+  # SIGMA | Y ~ iW(s_overbar,S_overbar)
+  
+  S_post    <- crossprod(Y - X %*% A_draw)
+  S_drawinv <- matrix(rWishart(1,s_post,solve(S_post)),M,M) 
+  # note that we can draw from the Wishart and inverting leads to the inverse-Wishart
+  S_draw    <- solve(S_drawinv) 
+  # or using the MCMCpack to draw from inverse-Wishart directly
+  S_draw    <- MCMCpack::riwish(s_post, S_post)
+  
+  #-----------------------------------------------------------------------------
+  # Step 2: Draw A_draw | Y, S_draw from multivariate normal
+  # V_overbar = (SIGMAinv otimes X'X + Vinv_underbar)^{-1}
+  # a_overbar = V_overbar (Vinv_underbar a_underbar + (SIGMAinv otimes X')y)
+  V_post    <- solve(kronecker(S_drawinv, XX) + V_priorinv)
+  # Here, using chol2inv(chol(kronecker(S_drawinv, XX) + V_priorinv)) saves time
+  A_post    <- V_post %*% (kronecker(S_drawinv, t(X))%*%y + V_priorinv%*%a_prior)
+  
+  eig_check <- TRUE
+  while(eig_check) {
+    # Here, using the lower Cholesky factor multiplied by k * M Normal draws creates
+    # draws from the multivariate Normal and saves time, compared to drawing from 
+    # multivariate Normal directly
+    A_draw     <- matrix(A_post + t(chol(V_post)) %*% rnorm(k * M), k, M)
+    # stability check using companion form
+    Cm <- matrix(0, K, K)
+    Cm[1:M,] <- t(A_draw[1:K, ]) # companion matrix excludes deterministic terms
+    diag(Cm[(M + 1):K, 1:(M * (plag - 1))]) <- 1
+    
+    eig_check <- max(abs(Re(eigen(Cm)$values))) > 1
+  }
+  
+  #-----------------------------------------------------------------------------
+  # Step 3: Storage/Predictions/IRFs
+  if(irep > nburn){
+    # Step 3a: Save parameter draws
+    A_store[irep - nburn, , ] <- A_draw
+    S_store[irep - nburn, , ] <- S_draw
+    
+    #---------------------------------------------------------------------------
+    # Step 3b: Build companion matrix for forecasts and IRFs again (illustration)
+    Cm <- matrix(0, K, K)
+    Cm[1:M,] <- t(A_draw[1:K, ]) # companion matrix excludes deterministic terms
+    diag(Cm[(M + 1):K, 1:(M * (plag - 1))]) <- 1
+    Jm <- matrix(0, K, M)
+    diag(Jm) <- 1
+    
+    #---------------------------------------------------------------------------
+    # Step 3c: Do predictions and calculate fhorz-step ahead prediction density
+    Mean00  <- c(Y[bigT, ], X[bigT, 1:(M * (plag - 1))]) 
+    # take latest values for Y plus p-1 lags from X for forecasts
+    Sigma00 <- matrix(0, K, K)
+    for(ihorz in 1:fhorz){
+      # first and second moments
+      Mean00  <- Cm %*% Mean00 # Create mean forecast
+      Sigma00 <- Cm %*% Sigma00 %*% t(Cm) + Jm %*% S_draw %*% t(Jm) # update variance of forecasts
+      
+      # draw forecasts from predictive density
+      yf    <- Mean00[1:M] + t(chol(Sigma00[1:M, 1:M])) %*% rnorm(M) 
+      yf_store[irep-nburn, , ihorz] <- yf
+    }
+    
+    #---------------------------------------------------------------------------
+    # Step 3d: Impulse response functions; both Cholesky and sign restrictions
+    
+    #---------------------------------------------------------------------------
+    # Step 3e: Identification via Cholesky
+    shock.chol <- t(chol(S_draw))
+    # Normalise shocks to 1 units
+    shock.chol <- diag(1 / diag(shock.chol)) %*% shock.chol
+    
+    
+    #---------------------------------------------------------------------------
+    # Step 3f: Identification via sign-restrictions
+    cond.overall <- TRUE
+    counter      <- 0
+    MaxTries     <- 1000
+    # draw rotation matrices Q till you find a fitting one (while-loop)
+    while(cond.overall && counter < MaxTries){
+      counter <- counter + 1
+      
+      # Define a rotation matrix with positive values on the main diagonal
+      Rtilda <- matrix(rnorm(M^2, 0, 1), M, M)
+      qr.object <- qr(Rtilda)
+      Q <- qr.Q(qr.object)
+      Q <- Q %*% diag((diag(Q) > 0) - (diag(Q) < 0))
+      
+      #shock is a full matrix
+      shock.chol <- t(chol(S_draw))
+      shock.sign <- shock.chol %*% Q
+      
+      # Oil supply shock shock
+      cond.MP <- (shock.sign[1, 3] < 0) * (shock.sign[2, 3] > 0) * (shock.sign[3, 3] > 0)
+      # Aggregate demand shock
+      cond.AS <- (shock.sign[1, 1] < 0) * (shock.sign[2, 1] > 0) * (shock.sign[3, 1] < 0)
+      # Oil-specific demand shock
+      cond.AD <- (shock.sign[1, 2] > 0) * (shock.sign[2, 2] > 0) * (shock.sign[3, 2] > 0)
+      
+      #Shocks have to be mutually exclusive (orthogonal)
+      cond.overall <- (cond.MP * cond.AS * cond.AD)==0
+    }
+    cou_store[irep - nburn] <- counter
+    
+    #---------------------------------------------------------------------------
+    # Step 3g: Compute IRFs
+    # Temporary objects for state space representation
+    irf.mat.chol<- irf.mat.sign <- array(NA, c(M, M, nhor))
+    
+    # Impulse --> shock at t = 0:
+    irf.mat.chol[ , , 1] <- shock.chol
+    irf.mat.sign[ , , 1] <- shock.sign
+    
+    #start at t = 1, as t = 0 is the impulse shock
+    Cmi <- Cm
+    for(ihorz in 2:nhor){
+      irf.mat.chol[ , , ihorz] <- t(Jm) %*% Cmi %*% Jm %*% shock.chol
+      irf.mat.sign[ , , ihorz] <- t(Jm) %*% Cmi %*% Jm %*% shock.sign
+      Cmi <- Cmi %*% Cm
+    }
+    IRFchol_store[irep - nburn, , , ] <- irf.mat.chol
+    IRFsign_store[irep - nburn, , , ] <- irf.mat.sign
+  }
+  if(irep %% 50 == 0) print(paste0("Round: ", irep, "/", ntot))
+}
 ```
-............... 
 
-Place for figure 2
+```{r figure 2 preparation}
+# Prepare Residuals
+Residuals_OLS <- as.data.frame(E_OLS) %>%
+  mutate(date = row.names(E_OLS)) %>%
+  separate(date, into = c("Y", "M"), sep = "M") %>%
+  group_by(Y) %>%
+  summarise(delta_oil_prod_yearly = mean(delta_oil_prod, na.rm = TRUE),
+            real_activity_yearly = mean(real_activity, na.rm = TRUE),
+            real_price_oil_yearly = mean(real_price_oil, na.rm = TRUE))
+```
 
-................
+```{r figure 2 plot}
+# Create plots for the Historical Evolution of the Structural Shocks, 1975–2007 
+par(mfrow=c(3,1))
+
+oilprod_TS <- ts(Residuals_OLS$delta_oil_prod_yearly/shock.chol[1,1], start = 1975)
+plot.ts(oilprod_TS, main = "Oil Supply Shock", xlab = "Year", las=3, lwd = 2)
+abline(h = 0, lty = "dashed", col = "red")
+
+realact_TS <- ts(Residuals_OLS$real_activity_yearly/shock.chol[2,2], start = 1975)
+plot.ts(realact_TS, main = "Aggregate Demand Shock", xlab = "Year", las=3, lwd = 2)
+abline(h = 0, lty = "dashed", col = "red")
+
+realprice_TS <- ts(Residuals_OLS$real_price_oil_yearly/shock.chol[3,3], start = 1975)
+plot.ts(realprice_TS, main = "Oil-specific Demand Shock", xlab = "Year", las=3, lwd = 2)
+abline(h = 0, lty = "dashed", col = "red")
+
+```
 
 \newpage
 
