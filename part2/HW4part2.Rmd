@@ -174,8 +174,8 @@ XX <- crossprod(X)
 #------------------------------------------------------------------------------------
 # MCMC setup
 #------------------------------------------------------------------------------------
-nsave <- 1000               # number of saved draws
-nburn <- 1000               # number of burned draws
+nsave <- 100               # number of saved draws
+nburn <- 50               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
 nhor  <- 16                # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
@@ -183,6 +183,7 @@ fhorz <- 8                  # forecasting horizon
 # Container for MCMC draws, stored after burn-in
 A_store <- array(NA, c(nsave, k, M))
 S_store <- array(NA, c(nsave, M, M))
+E_store <- array(NA, c(nsave, bigT, M))
 
 # container for sign restriction attempts
 cou_store <- numeric(length = nsave)
@@ -201,7 +202,7 @@ for(irep in 1:ntot){
   # s_overbar = T + s_underbar (s0)
   # S_overbar = (Y-XA)'(Y-XA) + S_underbar (S0)
   # SIGMA | Y ~ iW(s_overbar,S_overbar)
-
+  E_draw <- Y - X %*% A_draw
   S_post    <- crossprod(Y - X %*% A_draw)
   S_drawinv <- matrix(rWishart(1,s_post,solve(S_post)),M,M) 
   # note that we can draw from the Wishart and inverting leads to the inverse-Wishart
@@ -237,6 +238,7 @@ for(irep in 1:ntot){
     # Step 3a: Save parameter draws
     A_store[irep - nburn, , ] <- A_draw
     S_store[irep - nburn, , ] <- S_draw
+    E_store[irep - nburn, , ] <- E_draw
 
     #---------------------------------------------------------------------------
     # Step 3b: Build companion matrix for forecasts and IRFs again (illustration)
@@ -433,24 +435,33 @@ for(ii in 1:M){
 
 *Exercise 2:* 
 
+*• Using the code for the Bayesian VAR, estimate the VAR described in section II.A.1*
+
+We used the provided code and increased the $\lambda_1$ to 0.6 to account for higher frequency of the data. The lag shrinkage in the formula of V in Minnesota prior is given by 1/k where k is lag. This shrinkage is specific to quarterly or yearly data so for monthly data less aggressive lag shrinkage like 6/k is appropriate. To implement this we simply set $\lambda_1$ to 0.6 instead of 0.1. 
+
+*• Replicate figures 2 and 3 of Kilian, 2009 by recovering the structural form of the model by recursive
+ordering of variables.*
+
 Below we replicate figure 2.
 
-```{r figure 2}
+```{r, echo=FALSE}
+# Replicate Fig. 2
+err <- t(apply(apply(E_store, c(2, 3), median), 1, function(x) solve(shock.chol) %*% x))
+err <- ts(err, start = 1975, frequency = 12)
+par(mfrow=c(3,1),mar=c(5,3,2,3))
+plot(as.zoo(-aggregate.ts(err, FUN = mean))[, 1],
+ylim = c(-1, 1), xlab = "", ylab = "", main = "Oil supply shock")
+abline(h=0, col="grey")
+plot(as.zoo(aggregate.ts(err, FUN = mean))[, 2],
+ylim = c(-1, 1), xlab = "", ylab = "", main = "Aggregate demand shock")
+abline(h=0, col="grey")
+plot(as.zoo(aggregate.ts(err, FUN = mean))[, 3],
+ylim = c(-1, 1), xlab = "", ylab = "", main = "Oil-specific demand shock")
+abline(h=0, col="grey")
 
-#1. Compute reduced form error terms using data and posterior distributions of parameters
-# = (Data - model) where for model use posterior version of Kilian model (1) in reduced form
-# You should get as many as we have samples from posterior. Take median of them.
-#2. Compute structural error terms using by premultiplying with B_inv which is shock.col
-#Once you have structural errors look on slide 61 on slide set 16_ts-multi
-#Theta_j should be #IRFchol_median[4,,j] 
-#for bigger j it might be needed to recompute it (e.g. change forecast period)
-#Have a look on pictures which are in same folder with this code
 ```
-............... 
 
-Place for figure 2
 
-................
 
 \newpage
 
@@ -458,7 +469,7 @@ Below we replicate the lower panel of figure 3. The IRFs remind of those in the 
 
 
 
-```{r figure 3}
+```{r figure 3, echo=FALSE}
 # Code for replication of figure 3:
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
@@ -489,8 +500,26 @@ axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 ```
 
 
+*Think of reasonable sign restrictions to identify the model at hand; discuss and implement them. Recreate figure 3 using these restrictions and discuss differences to the one identified by recursive ordering. Briefly discuss potential shortcomings of both identifcation schemes.*
 
-Sign restrictions:
+We propose the following sign restrictions, where the 3x3 upper left submatrix is based on Kilian & Murphy (2012)
+
+```{r}
+sign_matrix <- matrix(c(
+  "-", "+", "+", "+",
+  "-", "+", "-", "+",
+  "+", "+", "+", "-",
+  "-", "+", "-", "+"),
+  nrow = 4,
+  ncol = 4,
+  byrow = TRUE)
+
+sign_matrix
+```
+
+The shortcoming of both identifications schemes comes from their definition. Zero short run restrictions assume that some variables do not react contemporaneously to a shock to other variables. The sign restrictions assume that reaction of some of the variables to a shock to other variables are positive or negative. Additionally when using sign restrictions the causal coefficients are set identified, which gives rise to larger confidence bands. 
+
+
 
 
 ```{r SR}
@@ -527,7 +556,9 @@ axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 
 \newpage
 
-Think of other variables:
+*• Think of other variables that might be influenced by oil market shocks and collect data that fits the
+frequency and time period of the provided data. Transform the additional data appropriately and estimate the reduced form of a suitable VAR model. Identify the different shocks (using recursive ordering and sign restrictions), compute impulse responses and discuss your results.*
+
 
 We decided to use the Variable "S.P.500" from the dataset "current.csv" and as a measure for the CPI the Variable "CPIAUCSL". 
 
@@ -674,8 +705,8 @@ XX <- crossprod(X)
 #------------------------------------------------------------------------------------
 # MCMC setup
 #------------------------------------------------------------------------------------
-nsave <- 1000               # number of saved draws
-nburn <- 1000               # number of burned draws
+nsave <- 100               # number of saved draws
+nburn <- 50               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
 nhor  <- 16                 # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
@@ -694,6 +725,7 @@ yf_store <- array(NA, c(nsave, M, fhorz))
 IRFchol_store <- array(NA,c(nsave, M, M, nhor))
 IRFsign_store <- array(NA,c(nsave, M, M, nhor))
 
+
 set.seed(1)
 for(irep in 1:ntot){
   #-----------------------------------------------------------------------------
@@ -701,7 +733,7 @@ for(irep in 1:ntot){
   # s_overbar = T + s_underbar (s0)
   # S_overbar = (Y-XA)'(Y-XA) + S_underbar (S0)
   # SIGMA | Y ~ iW(s_overbar,S_overbar)
-
+ 
   S_post    <- crossprod(Y - X %*% A_draw)
   S_drawinv <- matrix(rWishart(1,s_post,solve(S_post)),M,M) 
   # note that we can draw from the Wishart and inverting leads to the inverse-Wishart
@@ -737,7 +769,8 @@ for(irep in 1:ntot){
     # Step 3a: Save parameter draws
     A_store[irep - nburn, , ] <- A_draw
     S_store[irep - nburn, , ] <- S_draw
-
+  
+    
     #---------------------------------------------------------------------------
     # Step 3b: Build companion matrix for forecasts and IRFs again (illustration)
     Cm <- matrix(0, K, K)
