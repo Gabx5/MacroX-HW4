@@ -1,0 +1,31 @@
+---
+title: "Appendix"
+output:  pdf_document
+classoption: landscape
+geometry: "left=0cm,right=0cm,top=0cm,bottom=0cm"
+number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+![AR Coefficients for varying values of lambda 1](Lambda1_coefs.png){ width=100% }
+
+![AR Coefficients for varying values of lambda 2](l2_coef.png){ width=100% }
+
+![AR Coefficients for varying values of lambda 1 and 2](l12_coefs.png){ width=100% }
+
+
+![IRFs for varying values of lambda 1](Lambda1_Chol.png){ width=100% }
+
+![IRFs for varying values of lambda 2](l2_chol.png){ width=100% }
+
+![IRFs for varying values of lambda 1 and 2](l12_chol.png){ width=100% }
+
+
+![Forecasts for varying values of lambda 1](Lambda1_pred.png){ width=100% }
+
+![Forecasts for varying values of lambda 2](l2_pred.png){ width=100% }
+
+![Forecasts for varying values of lambda 1 and 2](l12_pred.png){ width=100% }
