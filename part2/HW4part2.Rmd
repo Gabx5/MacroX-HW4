@@ -5,7 +5,13 @@ date: "2023-06-03"
 output: pdf_document
 ---
 
+# Question 2 - Kilian (2009) cont'd
+*Read Kilian (2009), who discusses how to disentangle different oil shocks; focus on section II. Load the provided data by Kilian (2009), which contains a measure of change in oil production, a measure of real economic activity, and the real price of oil.*
 
+## Subquestion 2.1
+*Using the code for the Bayesian VAR, estimate the VAR described in section II.A.*
+Using the provided code from the lecuter, we estimate the Bayesian VAR based on Kilian (2009). We increased the $\lambda_1$ to 0.6 to account for higher frequency of the data. The lag shrinkage in the formula of V in Minnesota prior is given by 1/k where k is lag. This shrinkage is specific to quarterly or yearly data so for monthly data less aggressive lag shrinkage like 6/k is appropriate. To implement this we simply set $\lambda_1$ to 0.6 instead of 0.1. 
+ 
 ```{r load packages, echo=FALSE, include=FALSE}
 rm(list=ls())
 # -------------------------------------------------- #
@@ -437,14 +443,8 @@ for(ii in 1:M){
 }
 ```
 
-## Subquestion 2.1 - Figure 2 Replication 
-
-*• Using the code for the Bayesian VAR, estimate the VAR described in section II.A.1*
-
-We used the provided code and increased the $\lambda_1$ to 0.6 to account for higher frequency of the data. The lag shrinkage in the formula of V in Minnesota prior is given by 1/k where k is lag. This shrinkage is specific to quarterly or yearly data so for monthly data less aggressive lag shrinkage like 6/k is appropriate. To implement this we simply set $\lambda_1$ to 0.6 instead of 0.1. 
-
-*• Replicate figures 2 and 3 of Kilian, 2009 by recovering the structural form of the model by recursive
-ordering of variables.*
+## Subquestion 2.2 - Figure 2 Replication 
+*Replicate figures 2 and 3 of Kilian, 2009 by recovering the structural form of the model by recursive ordering of variables.*
 
 Below we replicate figure 2.
 
@@ -465,15 +465,11 @@ abline(h=0, col="grey")
 
 ```
 
-
-
 \newpage
 
-## Subquestion 2.2 - Figure 3
+## Subquestion 2.2 - Figure 3 Replication
 
 Below we replicate the lower panel of figure 3. The IRFs remind of those in the paper by Kilian, but are more smooth with values pushed more towards zero due to our prior. If we wanted to get IRFs which correspond more to those in the paper, we could increase the value of $\lambda_1$.
-
-
 
 ```{r figure 3, echo=FALSE}
 # Code for replication of figure 3:
@@ -515,10 +511,10 @@ for(jj in 1:M){
             }
 ```
 
-
+## Subquestion 2.3 - Sign Restrictions
 *Think of reasonable sign restrictions to identify the model at hand; discuss and implement them. Recreate figure 3 using these restrictions and discuss differences to the one identified by recursive ordering. Briefly discuss potential shortcomings of both identifcation schemes.*
 
-We propose the following sign restrictions, where the 3x3 upper left submatrix is based on Kilian & Murphy (2012)
+We propose the following sign restrictions, where the 3x3 upper left submatrix is based on Kilian & Murphy (2012).
 
 ```{r}
 sign_matrix <- matrix(c(
@@ -533,10 +529,9 @@ sign_matrix <- matrix(c(
 sign_matrix
 ```
 
-The shortcoming of both identifications schemes comes from their definition. Zero short run restrictions assume that some variables do not react contemporaneously to a shock to other variables. The sign restrictions assume that reaction of some of the variables to a shock to other variables are positive or negative. Additionally when using sign restrictions the causal coefficients are set identified, which gives rise to larger confidence bands. 
+The shortcoming of both identifications schemes comes from their definition. A *zero short run restriction* assumes that some variables do not react contemporaneously to a shock of other variables. The sign restrictions assume that reaction of some of the variables to a shock to other variables are positive or negative. Additionally when using sign restrictions the causal coefficients are set identified, which gives rise to larger confidence bands. 
 
-
-
+```{r}
 # specifications
 plag <- 24     # number of lags
 cons <- TRUE  # include constant?
@@ -899,8 +894,7 @@ axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 \newpage
 
 ## Subquestion 2.4 - Other Variables
-*• Think of other variables that might be influenced by oil market shocks and collect data that fits the
-frequency and time period of the provided data. Transform the additional data appropriately and estimate the reduced form of a suitable VAR model. Identify the different shocks (using recursive ordering and sign restrictions), compute impulse responses and discuss your results.*
+*Think of other variables that might be influenced by oil market shocks and collect data that fits the frequency and time period of the provided data. Transform the additional data appropriately and estimate the reduced form of a suitable VAR model. Identify the different shocks (using recursive ordering and sign restrictions), compute impulse responses and discuss your results.*
 
 
 We decided to use the Variable "S.P.500" from the dataset "current.csv" and as a measure for the CPI the Variable "CPIAUCSL". 
@@ -918,7 +912,7 @@ Traw <- nrow(data.returns)
 Yraw <- data.returns
 ```
 
-We again estimate the VAR:
+We again estimate the VAR...
 
 ```{r transform SP500, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
@@ -1274,17 +1268,16 @@ xax <- c(as.character(time[(bigT-20):bigT]),paste0("t+",seq(1,fhorz)))
 
 ```
 
-And compute the impulse response functions:
+... and compute the impulse response functions:
 
 ```{r figure 3 SP500}
-# Code for replication of figure 3:
-
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
 
 for (i in 1:4) {
 IRFchol_store2[, 4, i, ] <- t(apply(IRFchol_store[, 4, i, ], 1, cumsum))
 }
+#IRFchol_store2[,,3,1] <- IRFchol_store2[,,3,1]*(-1) 
 #Quantiles over the first dimension (number of saved draws)
 IRFchol_low.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
 IRFchol_high.68 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
@@ -1307,6 +1300,8 @@ axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 
 }}
 ```
+
+Computing the Impulse Response Functions as always, we can have a look at what the effects of shocks of our original variables on the the S\&P 500 measure are. The left most panel is the cumulative IRF of a shock in oil production, which seems to have little to non-significant effects on our inflation proxy, as can be seen from the confidence intervals. A similar effect can be seen in the shock related to real economic activity, which however shows signs of a decreasing effect in the later periods (starting at roughly period 8) The most significant effect can be seen in the IRF concerning a shock in the real price of oil, which shows to have a significant and sustainable decrease in the deflated stock returns. Similar to our non-bayesian aproach in assignment 1, the results are in line with the ones in Killian & Park (2009).
 
 Sign restrictions:
 
@@ -1341,3 +1336,5 @@ axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
 
 }}
 ```
+
+Again as before, we can see that the confidence intervalls have increased drastically because of the sign restrictions. 
