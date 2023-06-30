@@ -5,7 +5,29 @@ date: "2023-06-03"
 output: pdf_document
 ---
 
-# Question 2 - Kilian (2009) cont'd
+#Exercise 1
+
+For this exercise we tried to change $\lambda_1$ holding $\lambda_2$ constant, then varying $\lambda_2$ holding $\lambda_1$, and then varying both $\lambda_1$ and $\lambda_2$. For each of those, we compare 6 different values of lambda. The corresponding coefficients are depicted in the first 3 figures in Appendix.
+
+Changes in the estimated AR coefficients:
+
+For small values of $\lambda_1$ given $\lambda_2$, we see that all AR coefficients except constant are pushed towards their expectation given by $\underline{A}$ strongly. For each variable, its first lag is close to one and all other coefficients are close to 0. For high values of $\lambda_1$, the distinction between the coefficients of own first lags and others gets less pronounced. This was expected since in Minnesota prior $\lambda_1$ induces global shrinkage for all parameters except the constant term.
+Low value of $\lambda_2$ pushes the cross-variable coefficients to 0, while the own-variable coefficients have more freedom given by a medium value of $\lambda_1$. For high values of $\lambda_2$, the cross-variable coefficients fluctuate more freely around 0.
+Varying $\lambda_1$ and $\lambda_2$ combines these two effects.
+
+Changes in the estimated IRFs (we use Cholesky for illustration):
+
+Low $\lambda_1$ pushes all median IRFs to a constant response since all coefficients except for constant are pushed strongly to 0. Low $\lambda_2$ pushes the cross-variable responses to a constant. High $\lambda_1$ and $\lambda_2$ let the data speak. Notice that in Cholesky, the right-upper triangle of IRFs starts at 0 by definition, thus they are pushed towards 0.
+
+Changes in forecast:
+
+Low $\lambda_1$ makes the forecasts look more like a random walk. Low $\lambda_2$ not necessarily, since the dependence on own lags and constant seem to cause substantial variation in the forecasts.
+
+
+\newpage
+
+# Exercise 2  
+
 *Read Kilian (2009), who discusses how to disentangle different oil shocks; focus on section II. Load the provided data by Kilian (2009), which contains a measure of change in oil production, a measure of real economic activity, and the real price of oil.*
 
 ## Subquestion 2.1
@@ -47,7 +69,7 @@ require(bvarsv)
 ```{r data, echo=FALSE, include=FALSE}
 ############# NEW DATA  #############
 data.kilian.raw <- read.table("data_kilian_park_2009.txt", header = FALSE, sep = "", col.names = c("prod","REA","RP","RDG"))
-data.kilian <- ts(data.kilian.raw, start = c(1973,1), frequency = 12)
+data.kilian <- ts(data.kilian.raw[,1:3], start = c(1973,1), frequency = 12)
 ############ NEW DATA #############
 
 Traw <- nrow(data.kilian)
@@ -126,7 +148,7 @@ time <- as.yearqtr(time(data.kilian))
 diag(crossprod(yfit)) / diag(crossprod(Y))
 ```
 
-```{r main, echo=FALSE, include=FALSE}
+```{r main 1, echo=FALSE, include=FALSE}
 #------------------------------------------------------------------------------------
 # PRIORS
 #------------------------------------------------------------------------------------
@@ -184,8 +206,8 @@ XX <- crossprod(X)
 #------------------------------------------------------------------------------------
 # MCMC setup
 #------------------------------------------------------------------------------------
-nsave <- 1000               # number of saved draws
-nburn <- 500               # number of burned draws
+nsave <- 100               # number of saved draws
+nburn <- 50               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
 nhor  <- 16                # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
@@ -303,13 +325,12 @@ for(irep in 1:ntot){
       shock.sign <- shock.chol %*% Q
 
       # Oil supply shock
-      cond.OS <- (shock.sign[1, 1] < 0) * (shock.sign[2, 1] < 0) * (shock.sign[3, 1] > 0 )  * (shock.sign[4, 1] < 0 )
+      cond.OS <- (shock.sign[1, 1] < 0) * (shock.sign[2, 1] < 0) * (shock.sign[3, 1] > 0 )  
       # Oil REA shock 
-      cond.REA <- (shock.sign[1, 2] > 0) * (shock.sign[2, 2] > 0) * (shock.sign[3, 2] > 0)  * (shock.sign[4, 2] > 0 )
+      cond.REA <- (shock.sign[1, 2] > 0) * (shock.sign[2, 2] > 0) * (shock.sign[3, 2] > 0)  
       # Oil Demand driven shock
-      cond.D <- (shock.sign[1, 3] > 0) * (shock.sign[2, 3] < 0) * (shock.sign[3, 3] > 0)  * (shock.sign[4, 3] < 0 )
-      # other RDG shocks
-      cond.D <- (shock.sign[1, 4] > 0) * (shock.sign[2, 4] > 0) * (shock.sign[3, 4] < 0)  * (shock.sign[4, 4] > 0 )
+      cond.D <- (shock.sign[1, 3] > 0) * (shock.sign[2, 3] < 0) * (shock.sign[3, 3] > 0) 
+     
       #assuming other shocks influence price negatively on average
       
       #Shocks have to be mutually exclusive (orthogonal)
@@ -515,380 +536,68 @@ for(jj in 1:3){
 ## Subquestion 2.3 - Sign Restrictions
 *Think of reasonable sign restrictions to identify the model at hand; discuss and implement them. Recreate figure 3 using these restrictions and discuss differences to the one identified by recursive ordering. Briefly discuss potential shortcomings of both identifcation schemes.*
 
-We propose the following sign restrictions, where the 3x3 upper left submatrix is based on Kilian & Murphy (2012). It might be important to note here that the proposed columns are not linear combinations of each other, which would result in the model not being identified. 
+We propose the following sign restrictions, based on Kilian & Murphy (2012). It might be important to note here that the proposed columns are not linear combinations of each other, which would result in the model not being identified. 
 
-```{r}
-sign_matrix <- matrix(c(
-  "-", "+", "+", "+",
-  "-", "+", "-", "+",
-  "+", "+", "+", "-",
-  "-", "+", "-", "+"),
-  nrow = 4,
-  ncol = 4,
-  byrow = TRUE)
-
-sign_matrix
-```
+\begin{equation}
+\begin{bmatrix}
+e^{OP} \\
+e^{RA} \\
+e^{P} \\
+\end{bmatrix}
+=
+\begin{bmatrix}
+- & + & + \\
+- & + & - \\
++ & + & + \\
+\end{bmatrix}
+\begin{bmatrix}
+e^{OS} \\
+e^{AD} \\
+e^{OD} \\
+\end{bmatrix}
+\end{equation}
 
 The shortcoming of both identifications schemes comes from their definition. A *zero short run restriction* assumes that some variables do not react contemporaneously to a shock of other variables. The sign restrictions assume that reaction of some of the variables to a shock to other variables are positive or negative. Additionally when using sign restrictions the causal coefficients are set identified, which gives rise to larger confidence bands. 
-
-```{r}
-# specifications
-plag <- 24     # number of lags
-cons <- TRUE  # include constant?
-
-# Create data matrices
-Yraw <- as.matrix(Yraw)
-Xraw <- mlag(Yraw, plag) # X's are the lagged values of Y
-
-if(cons) Xraw <- cbind(Xraw, 1) # Note that constant is located after lags of variables
-
-# look at size of data
-dim(Yraw)
-dim(Xraw)
-
-# first plag rows are zero | conditioning on the first p observations
-Y <- Yraw[(plag + 1):nrow(Yraw), ]
-X <- Xraw[(plag + 1):nrow(Xraw), ]
-y <- as.vector(Y)
-
-dim(Y)
-dim(X)
-# View(X)
-
-# get useful dimensions
-M    <- ncol(Y)           # number of endogenous variables in the VAR
-bigT <- nrow(Y)           # sample size, do not use T only as name!
-K    <- M * plag          # number of autoregressive coefficients
-k    <- ncol(X)           # number of parameters per equation
-v    <- M * (M - 1) / 2
-#------------------------------------------------------------------------------------
-# Initial Values, OLS preliminaries, can also just take a draw from the prior distribution
-#------------------------------------------------------------------------------------
-A_OLS <- solve(crossprod(X)) %*% crossprod(X, Y)
-# A_OLS <- chol2inv(chol(crossprod(X)))%*%crossprod(X,Y) 
-# Cholesky to inverse saves computation time
-E_OLS <- Y - X %*% A_OLS
-S_OLS <- crossprod(E_OLS) / (bigT - K)
-
-# let's have a look at OLS estimates
-yfit <- X %*% A_OLS
-# amazing in-sample fit, but bad out-of-sample fit
-library(zoo)
-time <- as.yearqtr(time(data.kilian))
-
-
-
-# explained variation
-diag(crossprod(yfit)) / diag(crossprod(Y))
-```
-
-```{r main, echo=FALSE, include=FALSE}
-#------------------------------------------------------------------------------------
-# PRIORS
-#------------------------------------------------------------------------------------
-A_prior <- matrix(0, k, M) 
-diag(A_prior) <- 1 # prior mean: 1 for first own lags, 0 otherwise. Note that prior mean for
-                   # deterministics is in last row due to ordering of constant in Xraw
-A_prior
-a_prior <- as.vector(A_prior) # vectorize prior mean matrix
-
-# get AR variances to scale cross-variable lags of Minnesota prior
-sigs <- numeric(length = M)
-for(mm in 1:M){
-  yuse <- Y[, mm, drop=FALSE]
-  xuse <- cbind(X[,seq(mm, M * plag, by=M), drop=FALSE], 1)
-  b    <- solve(crossprod(xuse)) %*% crossprod(xuse,yuse)
-  sigs[mm] <- crossprod(yuse-xuse %*% b) / (bigT - plag - 1)
-}
-
-# Minnesota prior
-# own lags:       (lambda1/k)^2   # k == lag
-# cross lags:     (sig_i^2/sig_j^2)(lambda1 * lambda2/k)^2
-# deterministics: lambda3*sig_i^2
-lambda1 <- 0.6; lambda2 <- 0.5; lambda3 <- 100
-V_prior <- array(0, c(k, k, M))
-for(mm in 1:M){ # over all equations
-  for(pp in 1:plag){ # over all lags
-    for(kk in 1:M){ # over all coefficients
-      if(mm == kk){ # own lag
-        V_prior[(pp - 1) * M + kk, (pp - 1) * M + kk, mm] <- (lambda1 / pp)^2
-      }else{ # cross-lags
-        V_prior[(pp - 1) * M + kk, (pp - 1) * M + kk, mm] <- (sigs[mm] / sigs[kk]) * (lambda1 * lambda2 / pp)^2
-      }
-    }
-  }
-  V_prior[k, k, mm] <- lambda3 * sigs[mm] # for deterministics (i.e. constant)
-}
-V_prior    <- lapply(seq(dim(V_prior)[3]), function(x) V_prior[ , , x]) # array to list
-V_prior    <- Reduce(magic::adiag, V_prior) # bring in form
-V_prior[1:(M*plag+1), 1:(M*plag+1)]
-V_priorinv <- diag(1 / diag(V_prior))
-
-# hyperparameters for inverse Wishart
-s0 <- M + 2
-S0 <- (s0 - M - 1) * diag(sigs)
-
-# initialize draws with OLS estimators
-A_draw <- A_OLS
-S_draw <- S_OLS
-
-# outside loop calculations
-s_post    <- bigT + s0
-XX <- crossprod(X)
-
-
-#------------------------------------------------------------------------------------
-# MCMC setup
-#------------------------------------------------------------------------------------
-nsave <- 1000               # number of saved draws
-nburn <- 1000               # number of burned draws
-ntot  <- nsave + nburn      # number of total draws
-nhor  <- 16                # horizon for IRFs
-fhorz <- 8                  # forecasting horizon
-
-# Container for MCMC draws, stored after burn-in
-A_store <- array(NA, c(nsave, k, M))
-S_store <- array(NA, c(nsave, M, M))
-
-# container for sign restriction attempts
-cou_store <- numeric(length = nsave)
-
-# Predictions -- dimensions: number of draws x number of variables x forecasting horizon
-yf_store <- array(NA, c(nsave, M, fhorz))
-
-# IRFs -- dimensions: Number of draws x Number of responses x Number of structural shocks x horizon
-IRFchol_store <- array(NA,c(nsave, M, M, nhor))
-IRFsign_store <- array(NA,c(nsave, M, M, nhor))
-
-set.seed(1)
-for(irep in 1:ntot){
-  #-----------------------------------------------------------------------------
-  # Step 1: Draw S_draw | Y, A_draw from IW
-  # s_overbar = T + s_underbar (s0)
-  # S_overbar = (Y-XA)'(Y-XA) + S_underbar (S0)
-  # SIGMA | Y ~ iW(s_overbar,S_overbar)
-
-  S_post    <- crossprod(Y - X %*% A_draw)
-  S_drawinv <- matrix(rWishart(1,s_post,solve(S_post)),M,M) 
-  # note that we can draw from the Wishart and inverting leads to the inverse-Wishart
-  S_draw    <- solve(S_drawinv) 
-  # or using the MCMCpack to draw from inverse-Wishart directly
-  S_draw    <- MCMCpack::riwish(s_post, S_post)
-
-  #-----------------------------------------------------------------------------
-  # Step 2: Draw A_draw | Y, S_draw from multivariate normal
-  # V_overbar = (SIGMAinv otimes X'X + Vinv_underbar)^{-1}
-  # a_overbar = V_overbar (Vinv_underbar a_underbar + (SIGMAinv otimes X')y)
-  V_post    <- solve(kronecker(S_drawinv, XX) + V_priorinv)
-  # Here, using chol2inv(chol(kronecker(S_drawinv, XX) + V_priorinv)) saves time
-  A_post    <- V_post %*% (kronecker(S_drawinv, t(X))%*%y + V_priorinv%*%a_prior)
-  
-  eig_check <- TRUE
-  while(eig_check) {
-    # Here, using the lower Cholesky factor multiplied by k * M Normal draws creates
-    # draws from the multivariate Normal and saves time, compared to drawing from 
-    # multivariate Normal directly
-    A_draw     <- matrix(A_post + t(chol(V_post)) %*% rnorm(k * M), k, M)
-    # stability check using companion form
-    Cm <- matrix(0, K, K)
-    Cm[1:M,] <- t(A_draw[1:K, ]) # companion matrix excludes deterministic terms
-    diag(Cm[(M + 1):K, 1:(M * (plag - 1))]) <- 1
-    
-    eig_check <- max(abs(Re(eigen(Cm)$values))) > 1
-  }
-  
-  #-----------------------------------------------------------------------------
-  # Step 3: Storage/Predictions/IRFs
-  if(irep > nburn){
-    # Step 3a: Save parameter draws
-    A_store[irep - nburn, , ] <- A_draw
-    S_store[irep - nburn, , ] <- S_draw
-
-    #---------------------------------------------------------------------------
-    # Step 3b: Build companion matrix for forecasts and IRFs again (illustration)
-    Cm <- matrix(0, K, K)
-    Cm[1:M,] <- t(A_draw[1:K, ]) # companion matrix excludes deterministic terms
-    diag(Cm[(M + 1):K, 1:(M * (plag - 1))]) <- 1
-    Jm <- matrix(0, K, M)
-    diag(Jm) <- 1
-
-    #---------------------------------------------------------------------------
-    # Step 3c: Do predictions and calculate fhorz-step ahead prediction density
-    Mean00  <- c(Y[bigT, ], X[bigT, 1:(M * (plag - 1))]) 
-    # take latest values for Y plus p-1 lags from X for forecasts
-    Sigma00 <- matrix(0, K, K)
-    for(ihorz in 1:fhorz){
-      # first and second moments
-      Mean00  <- Cm %*% Mean00 # Create mean forecast
-      Sigma00 <- Cm %*% Sigma00 %*% t(Cm) + Jm %*% S_draw %*% t(Jm) # update variance of forecasts
-      
-      # draw forecasts from predictive density
-      yf    <- Mean00[1:M] + t(chol(Sigma00[1:M, 1:M])) %*% rnorm(M) 
-      yf_store[irep-nburn, , ihorz] <- yf
-    }
-
-    #---------------------------------------------------------------------------
-    # Step 3d: Impulse response functions; both Cholesky and sign restrictions
-
-    #---------------------------------------------------------------------------
-    # Step 3e: Identification via Cholesky
-    shock.chol <- t(chol(S_draw))
-    # Normalise shocks to 1 units
-    shock.chol <- diag(1 / diag(shock.chol)) %*% shock.chol
-    
-
-    #---------------------------------------------------------------------------
-    # Step 3f: Identification via sign-restrictions
-    cond.overall <- TRUE
-    counter      <- 0
-    MaxTries     <- 1000
-    # draw rotation matrices Q till you find a fitting one (while-loop)
-    while(cond.overall && counter < MaxTries){
-      counter <- counter + 1
-      
-      # Define a rotation matrix with positive values on the main diagonal
-      Rtilda <- matrix(rnorm(M^2, 0, 1), M, M)
-      qr.object <- qr(Rtilda)
-      Q <- qr.Q(qr.object)
-      Q <- Q %*% diag((diag(Q) > 0) - (diag(Q) < 0))
-
-      #shock is a full matrix
-      shock.chol <- t(chol(S_draw))
-      shock.sign <- shock.chol %*% Q
-
-      # Oil supply shock
-      cond.OS <- (shock.sign[1, 1] < 0) * (shock.sign[2, 1] < 0) * (shock.sign[3, 1] > 0 )  * (shock.sign[4, 1] < 0 )
-      # Oil REA shock 
-      cond.REA <- (shock.sign[1, 2] > 0) * (shock.sign[2, 2] > 0) * (shock.sign[3, 2] > 0)  * (shock.sign[4, 2] > 0 )
-      # Oil Demand driven shock
-      cond.D <- (shock.sign[1, 3] > 0) * (shock.sign[2, 3] < 0) * (shock.sign[3, 3] > 0)  * (shock.sign[4, 3] < 0 )
-      # other RDG shocks
-      cond.D <- (shock.sign[1, 4] > 0) * (shock.sign[2, 4] > 0) * (shock.sign[3, 4] < 0)  * (shock.sign[4, 4] > 0 )
-      #assuming other shocks influence price negatively on average
-      
-      #Shocks have to be mutually exclusive (orthogonal)
-      cond.overall <- (cond.OS * cond.REA * cond.D)==0
-    }
-    cou_store[irep - nburn] <- counter
-
-    #---------------------------------------------------------------------------
-    # Step 3g: Compute IRFs
-    # Temporary objects for state space representation
-    irf.mat.chol<- irf.mat.sign <- array(NA, c(M, M, nhor))
-
-    # Impulse --> shock at t = 0:
-    irf.mat.chol[ , , 1] <- shock.chol
-    irf.mat.sign[ , , 1] <- shock.sign
-
-    #start at t = 1, as t = 0 is the impulse shock
-    Cmi <- Cm
-    for(ihorz in 2:nhor){
-      irf.mat.chol[ , , ihorz] <- t(Jm) %*% Cmi %*% Jm %*% shock.chol
-      irf.mat.sign[ , , ihorz] <- t(Jm) %*% Cmi %*% Jm %*% shock.sign
-      Cmi <- Cmi %*% Cm
-    }
-    IRFchol_store[irep - nburn, , , ] <- irf.mat.chol
-    IRFsign_store[irep - nburn, , , ] <- irf.mat.sign
-  }
-  if(irep %% 50 == 0) print(paste0("Round: ", irep, "/", ntot))
-}
-
-# CHECK CONVERGENCE
-library(coda)
-crit_val <- 1.96
-Z_scores <- c()
-
-par(mfrow=c(k,3),mar=c(2,2,1,1))
-for(ii in 1:k){
-  for(jj in 1:M){
-    #plot.ts(A_store[,ii,jj])
-    #abline(h = mean(A_store[,ii,jj]), col = "red", lty = 2)
-    #abline(h = quantile(A_store[,ii,jj], p = c(0.05, 0.95)), col = "blue")
-    Z_scores[(jj-1)*k+ii] <- geweke.diag(A_store[,ii,jj])$z
-  }
-}
-
-
-# Autocorrelation of parameter draws for AR coefficients
-#par(mfrow=c(k,3),mar=c(1,1,1,1))
-#for(ii in 1:k){
-#  for(jj in 1:M){
-#    acf(A_store[,ii,jj])
-#  }
-#}
-
-
-
-# Autocorrelation of parameter draws for variance coefficients
-#par(mfrow=c(M,M),mar=c(1,1,1,1))
-#for(jj in 1:M){
-#  for(ii in 1:M){
-#    acf(S_store[,ii,jj])
-#  }
-#}
-
-idx <- which(abs(Z_scores) > crit_val)
-paste(length(idx), " out of ",k*M+M^2, " variables' z-values exceed the 1.96 threshold", " (", round(length(idx)/(k*M+M^2)*100,2),"%)",sep="")
-
-#Quantiles over the first dimension (number of saved draws)
-IRFchol_low    <- apply(IRFchol_store, c(2,3,4), quantile, 0.16,na.rm=TRUE)
-IRFchol_high   <- apply(IRFchol_store, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFchol_median <- apply(IRFchol_store, c(2,3,4), median, na.rm=TRUE)
-
-IRFsign_low    <- apply(IRFsign_store, c(2,3,4), quantile, 0.16,na.rm=TRUE)
-IRFsign_high   <- apply(IRFsign_store, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFsign_median <- apply(IRFsign_store, c(2,3,4), median, na.rm=TRUE)
-
-
-
-
-
-## check signs
-par(mfrow=c(1,1))
-hist(cou_store)
-
-### plotting predictions
-yf_low    <- apply(yf_store, c(2,3), quantile, 0.16, na.rm=TRUE)
-yf_median <- apply(yf_store, c(2,3), quantile, 0.50, na.rm=TRUE)
-yf_high   <- apply(yf_store, c(2,3), quantile, 0.84, na.rm=TRUE)
-
-yf_low    <- cbind(t(Yraw[(bigT-20):bigT,]),yf_low)
-yf_median <- cbind(t(Yraw[(bigT-20):bigT,]),yf_median)
-yf_high   <- cbind(t(Yraw[(bigT-20):bigT,]),yf_high)
-
-xax <- c(as.character(time[(bigT-20):bigT]),paste0("t+",seq(1,fhorz)))
-```
 
 ```{r SR}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
-IRFsign_store2 <- IRFsign_store
+IRFsign_store_tmp <- IRFsign_store
 
-for (i in 1:4) {
-IRFsign_store2[, 4, i, ] <- t(apply(IRFsign_store[, 4, i, ], 1, cumsum))
+for (i in 1:3) {
+  IRFsign_store_tmp[, 1, i, ] <- t(apply(IRFsign_store[, 1, i, ], 1, cumsum))
 }
-#Quantiles over the first dimension (number of saved draws)
-IRFsign_low.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.16,na.rm=TRUE)
-IRFsign_high.68 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.84,na.rm=TRUE)
-IRFsign_low.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.025,na.rm=TRUE)
-IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
-IRFsign_median2 <- apply(IRFsign_store2, c(2,3,4), median, na.rm=TRUE)
-#Start plotting the IRFs w.r.t. different shocks
 
-par(mfrow=c(1,3),mar=c(6,2,6,2))
-sign.list <- c(-1,1,1)
-main.list <- c("Oil supply shock", "Aggregate demand shock", "Oil-specific demand shock")
-for(jj in seq_along(sign.list)){
-for(ii in 4:4){
-plot.ts(sign.list[jj]*IRFsign_median2[ii,jj,], ylab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), ylim = c(-3,3),xaxt="n",lwd=2,xlab="")
-lines(sign.list[jj]*IRFsign_low.68[ii,jj,], lty = 2, lwd=2)
-lines(sign.list[jj]*IRFsign_high.68[ii,jj,], lty = 2, lwd=2)
-lines(sign.list[jj]*IRFsign_low.95[ii,jj,], lty = 3, lwd=2)
-lines(sign.list[jj]*IRFsign_high.95[ii,jj,], lty = 3, lwd=2)
-abline(h=0,col="red",lwd=2)
-axis(1, at = seq(1, nhor, by = 2), labels = seq(0, nhor - 1, by = 2))
+#Quantiles over the first dimension (number of saved draws)
+IRFsign_low    <- apply(IRFsign_store_tmp, c(2,3,4), quantile, 0.16,na.rm=TRUE)
+IRFsign_high   <- apply(IRFsign_store_tmp, c(2,3,4), quantile, 0.84,na.rm=TRUE)
+IRFsign_median <- apply(IRFsign_store_tmp, c(2,3,4), median, na.rm=TRUE)
+
+#changing signs of the Cholesky decomposition for the oil supply shock
+for(jj in 1:3){
+  for(ii in 1:16){
+    IRFsign_low[jj,1,ii] <- (-1)* IRFsign_low[jj,1,ii]
+    IRFsign_high[jj,1,ii] <- (-1)* IRFsign_high[jj,1,ii]
+    IRFsign_median[jj,1,ii] <- (-1)* IRFsign_median[jj,1,ii]
 }}
+  
+#Start plotting the IRFs w.r.t. different shocks
+yaxis <- list(c(-25, 15), 
+               c(-5, 10), 
+               c(-5, 10))
+
+par(mfrow=c(3,3),mar=c(2,2,1,1))
+
+for(jj in 1:3){
+  for(ii in 1:3){
+    plot.ts(IRFsign_median[ii,jj,], ylab="", xlab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), xaxt="n",lwd=2,       ylim = yaxis[[ii]])
+    lines(IRFsign_low[ii,jj,], lty = 2, lwd=2)
+    lines(IRFsign_high[ii,jj,], lty = 2, lwd=2)
+    abline(h=0,col="red",lwd=2)
+    abline(v=seq(1,nhor,by=2), col="lightgrey", lty=2)
+    axis(1, at=seq(1,nhor,by=2), labels=seq(0,nhor-1,by=2))
+              }
+            }
 ```
 
 
@@ -1271,7 +980,48 @@ xax <- c(as.character(time[(bigT-20):bigT]),paste0("t+",seq(1,fhorz)))
 
 ... and compute the impulse response functions:
 
-```{r figure 3 SP500}
+```{r figure 3 SP500 2, echo=FALSE}
+# Code for replication of figure 3:
+IRFchol_store_tmp <- IRFchol_store
+for (i in 1:4) {
+  IRFchol_store_tmp[, 1, i, ] <- t(apply(IRFchol_store[, 1, i, ], 1, cumsum))
+}
+
+#Quantiles over the first dimension (number of saved draws)
+IRFchol_low    <- apply(IRFchol_store_tmp, c(2,3,4), quantile, 0.16,na.rm=TRUE)
+IRFchol_high   <- apply(IRFchol_store_tmp, c(2,3,4), quantile, 0.84,na.rm=TRUE)
+IRFchol_median <- apply(IRFchol_store_tmp, c(2,3,4), median, na.rm=TRUE)
+
+#changing signs of the Cholesky decomposition for the oil supply shock
+for(jj in 1:4){
+  for(ii in 1:16){
+    IRFchol_low[jj,1,ii] <- (-1)* IRFchol_low[jj,1,ii]
+    IRFchol_high[jj,1,ii] <- (-1)* IRFchol_high[jj,1,ii]
+    IRFchol_median[jj,1,ii] <- (-1)* IRFchol_median[jj,1,ii]
+}}
+  
+
+#Start plotting the IRFs w.r.t. different shocks
+yaxis <- list(c(-25, 15), 
+               c(-5, 6), 
+               c(-5, 6),
+                c(-2, 5))
+
+par(mfrow=c(4,2),mar=c(2,3,1,2))
+
+for(jj in 1:4){
+  for(ii in 1:4){
+    plot.ts(IRFchol_median[ii,jj,], ylab="", xlab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), xaxt="n",lwd=2,       ylim = yaxis[[ii]])
+    lines(IRFchol_low[ii,jj,], lty = 2, lwd=2)
+    lines(IRFchol_high[ii,jj,], lty = 2, lwd=2)
+    abline(h=0,col="red",lwd=2)
+    abline(v=seq(1,nhor,by=2), col="lightgrey", lty=2)
+    axis(1, at=seq(1,nhor,by=2), labels=seq(0,nhor-1,by=2))
+              }
+            }
+```
+
+```{r figure 3 SP500, eval=FALSE}
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
 
@@ -1287,11 +1037,11 @@ IRFchol_high.95 <- apply(IRFchol_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFchol_median2 <- apply(IRFchol_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
-par(mfrow=c(1,3),mar=c(6,2,6,2))
-sign.list <- c(-1,1,1)
+par(mfrow=c(4,4),mar=c(2,1,1,2))
+sign.list <- c(-1,1,1,1)
 for(jj in seq_along(sign.list)){
-for(ii in 4:4){
-plot.ts(sign.list[jj]*IRFchol_median2[ii,jj,], ylab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), ylim = c(-3,3),xaxt="n",lwd=2,xlab="")
+for(ii in 1:4){
+plot.ts(sign.list[jj]*IRFchol_median2[ii,jj,], ylab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), ylim = c(-5,5),xaxt="n",lwd=2,xlab="")
 lines(sign.list[jj]*IRFchol_low.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFchol_high.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFchol_low.95[ii,jj,], lty = 3, lwd=2)
@@ -1306,7 +1056,49 @@ Computing the Impulse Response Functions as always, we can have a look at what t
 
 Sign restrictions:
 
-```{r SR SP500}
+```{r SR SP500 2}
+# Code for replication sign restriction 
+#New storage for cumulative IRFs
+IRFsign_store_tmp <- IRFsign_store
+
+for (i in 1:4) {
+  IRFsign_store_tmp[, 1, i, ] <- t(apply(IRFsign_store[, 1, i, ], 1, cumsum))
+}
+
+#Quantiles over the first dimension (number of saved draws)
+IRFsign_low    <- apply(IRFsign_store_tmp, c(2,3,4), quantile, 0.16,na.rm=TRUE)
+IRFsign_high   <- apply(IRFsign_store_tmp, c(2,3,4), quantile, 0.84,na.rm=TRUE)
+IRFsign_median <- apply(IRFsign_store_tmp, c(2,3,4), median, na.rm=TRUE)
+
+#changing signs of the Cholesky decomposition for the oil supply shock
+for(jj in 1:4){
+  for(ii in 1:16){
+    IRFsign_low[jj,1,ii] <- (-1)* IRFsign_low[jj,1,ii]
+    IRFsign_high[jj,1,ii] <- (-1)* IRFsign_high[jj,1,ii]
+    IRFsign_median[jj,1,ii] <- (-1)* IRFsign_median[jj,1,ii]
+}}
+  
+#Start plotting the IRFs w.r.t. different shocks
+yaxis <- list(c(-25, 15), 
+               c(-5, 6), 
+               c(-5, 6),
+                c(-2, 5))
+
+par(mfrow=c(4,2),mar=c(2,3,1,2))
+
+for(jj in 1:4){
+  for(ii in 1:4){
+    plot.ts(IRFsign_median[ii,jj,], ylab="", xlab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), xaxt="n",lwd=2,       ylim = yaxis[[ii]])
+    lines(IRFsign_low[ii,jj,], lty = 2, lwd=2)
+    lines(IRFsign_high[ii,jj,], lty = 2, lwd=2)
+    abline(h=0,col="red",lwd=2)
+    abline(v=seq(1,nhor,by=2), col="lightgrey", lty=2)
+    axis(1, at=seq(1,nhor,by=2), labels=seq(0,nhor-1,by=2))
+              }
+            }
+```
+
+```{r SR SP500, eval=FALSE}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store2 <- IRFsign_store
@@ -1322,11 +1114,11 @@ IRFsign_high.95 <- apply(IRFsign_store2, c(2,3,4), quantile, 0.975,na.rm=TRUE)
 IRFsign_median2 <- apply(IRFsign_store2, c(2,3,4), median, na.rm=TRUE)
 #Start plotting the IRFs w.r.t. different shocks
 
-par(mfrow=c(1,3),mar=c(6,2,6,2))
-sign.list <- c(-1,1,1)
+par(mfrow=c(4,4),mar=c(2,1,1,2))
+sign.list <- c(-1,1,1,1)
 main.list <- c("Oil supply shock", "Aggregate demand shock", "Oil-specific demand shock")
 for(jj in seq_along(sign.list)){
-for(ii in 4:4){
+for(ii in 1:4){
 plot.ts(sign.list[jj]*IRFsign_median2[ii,jj,], ylab="", main=paste0("Shock ",colnames(Y)[jj], " on ",colnames(Y)[ii]), ylim = c(-5,5),xaxt="n",lwd=2,xlab="")
 lines(sign.list[jj]*IRFsign_low.68[ii,jj,], lty = 2, lwd=2)
 lines(sign.list[jj]*IRFsign_high.68[ii,jj,], lty = 2, lwd=2)
