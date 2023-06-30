@@ -7,7 +7,7 @@ output: pdf_document
 
 #Exercise 1
 
-For this exercise we tried to change $\lambda_1$ holding $\lambda_2$ constant, then varying $\lambda_2$ holding $\lambda_1$, and then varying both $\lambda_1$ and $\lambda_2$. For each of those, we compare 6 different values of lambda. The corresponding coefficients are depicted in the first 3 figures in Appendix.
+For this exercise we tried to change $\lambda_1$ holding $\lambda_2$ constant, then varying $\lambda_2$ holding $\lambda_1$, and then varying both $\lambda_1$ and $\lambda_2$. For each of those, we compare 6 different values of lambda. The corresponding coefficients are depicted in the first 3 figures in Appendix. Also in the later figures in Appendix IRFs and forecast plots are depicted.
 
 Changes in the estimated AR coefficients:
 
@@ -206,8 +206,8 @@ XX <- crossprod(X)
 #------------------------------------------------------------------------------------
 # MCMC setup
 #------------------------------------------------------------------------------------
-nsave <- 100               # number of saved draws
-nburn <- 50               # number of burned draws
+nsave <- 1000               # number of saved draws
+nburn <- 1000               # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
 nhor  <- 16                # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
@@ -540,9 +540,9 @@ We propose the following sign restrictions, based on Kilian & Murphy (2012). It 
 
 \begin{equation}
 \begin{bmatrix}
-e^{OP} \\
-e^{RA} \\
-e^{P} \\
+\epsilon^{OP} \\
+\epsilon^{RA} \\
+\epsilon^{P} \\
 \end{bmatrix}
 =
 \begin{bmatrix}
@@ -559,7 +559,7 @@ e^{OD} \\
 
 The shortcoming of both identifications schemes comes from their definition. A *zero short run restriction* assumes that some variables do not react contemporaneously to a shock of other variables. The sign restrictions assume that reaction of some of the variables to a shock to other variables are positive or negative. Additionally when using sign restrictions the causal coefficients are set identified, which gives rise to larger confidence bands. 
 
-```{r SR}
+```{r SR, echo=FALSE}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store_tmp <- IRFsign_store
@@ -753,8 +753,8 @@ XX <- crossprod(X)
 #------------------------------------------------------------------------------------
 # MCMC setup
 #------------------------------------------------------------------------------------
-nsave <- 100               # number of saved draws
-nburn <- 50               # number of burned draws
+nsave <- 1000               # number of saved draws
+nburn <- 1000             # number of burned draws
 ntot  <- nsave + nburn      # number of total draws
 nhor  <- 16                 # horizon for IRFs
 fhorz <- 8                  # forecasting horizon
@@ -1021,7 +1021,7 @@ for(jj in 1:4){
             }
 ```
 
-```{r figure 3 SP500, eval=FALSE}
+```{r figure 3 SP500, eval=FALSE, include=FALSE}
 #New storage for cumulative IRFs
 IRFchol_store2 <- IRFchol_store
 
@@ -1056,7 +1056,7 @@ Computing the Impulse Response Functions as always, we can have a look at what t
 
 Sign restrictions:
 
-```{r SR SP500 2}
+```{r SR SP500 2, echo=FALSE}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store_tmp <- IRFsign_store
@@ -1097,8 +1097,33 @@ for(jj in 1:4){
               }
             }
 ```
+For the sign restrictions we extended the identification from above and used:
 
-```{r SR SP500, eval=FALSE}
+\begin{equation}
+\begin{bmatrix}
+\epsilon^{OP} \\
+\epsilon^{RA} \\
+\epsilon^{P} \\
+\epsilon^{SP500} \\
+\end{bmatrix}
+=
+\begin{bmatrix}
+- & + & + & + \\
+- & + & - & + \\
++ & + & + & - \\
+- & + & - & + \\
+\end{bmatrix}
+\begin{bmatrix}
+e^{OS} \\
+e^{AD} \\
+e^{OD} \\
+e^{other} \\
+\end{bmatrix}
+\end{equation}
+
+Where other means other sources of shocks to oil.
+
+```{r SR SP500, eval=FALSE, include=FALSE}
 # Code for replication sign restriction 
 #New storage for cumulative IRFs
 IRFsign_store2 <- IRFsign_store
